@@ -416,7 +416,7 @@ browser* browser_create(page *def) {
 void open_page(browser *br, int e, page *pges)
 {
     tab *curr = ((tab *)(br->curr->data));
-    st_push(curr->back,curr->curr_page); // check for bugs here l8r
+    st_push(curr->back,&curr->curr_page); // check for bugs here l8r
     st_clear(curr->forw);
     curr->curr_page = &pges[e];
 }
@@ -430,8 +430,10 @@ void go_down(browser *br)
         printf("NO PAGE IN HISTORY\n");
         return;
     }
-    st_push(curr->forw,curr->curr_page);
-    curr->curr_page = st_peek(curr->back);
+    st_push(curr->forw,&curr->curr_page);
+    page *p;
+    memcpy(&p, st_peek(curr->back), sizeof(p));
+    curr->curr_page = p;
     st_pop(curr->back);
 }
 
@@ -444,8 +446,10 @@ void go_up(browser *br)
         printf("NO PAGE IN HISTORY\n");
         return;
     }
-    st_push(curr->back,curr->curr_page);
-    curr->curr_page = st_peek(curr->forw);
+    st_push(curr->back,&curr->curr_page);
+    page *p;
+    memcpy(&p, st_peek(curr->forw), sizeof(p));
+    curr->curr_page = p;
     st_pop(curr->forw);
 }
 
@@ -458,11 +462,6 @@ void print_all(browser *br, FILE *out)
         return;
     }
     if(br->curr == br->sen)
-    {
-        fprintf(out,"403 Forbidden\n");
-        return;
-    }
-    if(br->curr->data == NULL)
     {
         fprintf(out,"403 Forbidden\n");
         return;
@@ -490,7 +489,7 @@ void print_history(browser *br, int e, FILE *out)
     //tab * temp = (tab *)(br->curr->data);
     dll_node_t *q = br->sen;
     q = q->next;
-    while(e--)
+    while(((tab *)(q->data))->id != e)
     {
         q = q->next;
     }
@@ -503,18 +502,21 @@ void print_history(browser *br, int e, FILE *out)
     }
     while(!st_is_empty(mv))
     {
-        fprintf(out,"%s\n",((page *)st_peek(mv))->url);
+        page *p;
+        memcpy(&p, st_peek(mv), sizeof(p));
+        fprintf(out, "%s\n", p->url);
 
         st_push(temp->forw,st_peek(mv));
         st_pop(mv);
     }
 
-    fprintf(out,"%s\n",((tab *)(br->curr->data))->curr_page->url);
+    fprintf(out,"%s\n",(((tab *)(q->data))->curr_page)->url);
 
     while(!st_is_empty(temp->back))
     {
-        fprintf(out,"%s\n",((page *)st_peek(temp->back))->url);
-
+        page *p;
+        memcpy(&p, st_peek(temp->back), sizeof(p));
+        fprintf(out, "%s\n", p->url);
         st_push(mv,st_peek(temp->back));
         st_pop(temp->back);
     }
@@ -523,14 +525,13 @@ void print_history(browser *br, int e, FILE *out)
         st_push(temp->back,st_peek(mv));
         st_pop(mv);
     }
+    st_free(mv);
 }
-
-
 
 int read_sites(FILE *f, page sites[]) {
     int sites_number;
     if (fscanf(f, "%d", &sites_number) != 1) {
-        fprintf(stderr, "Error reading site count.\n");
+        fprintf(stderr, "403 Forbidden\n");
         printf("WHAT\n");;
     }
 
