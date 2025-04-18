@@ -416,42 +416,35 @@ browser* browser_create(page *def) {
 // PAGE <ID>
 // the error check for this function should be 
 // done before its called
-void open_page(browser *br, int e, page *pges)
-{
+void open_page(browser *br, int e, page *pges) {
     tab *curr = ((tab *)(br->curr->data));
-    st_push(curr->back,&curr->curr_page); // check for bugs here l8r
+    st_push(curr->back, &curr->curr_page); // always bugs here
     st_clear(curr->forw);
     curr->curr_page = &pges[e];
 }
 
 // BACKWARD
-void go_down(browser *br)
-{
+void go_down(browser *br, FILE *out) {
     tab *curr = ((tab *)(br->curr->data));
-    if(st_is_empty(curr->back))
-    {
-        printf("NO PAGE IN HISTORY\n");
+    if(st_is_empty(curr->back)) {
+        fprintf(out,"403 Forbidden\n");
         return;
     }
-    st_push(curr->forw,&curr->curr_page);
-    page *p;
-    memcpy(&p, st_peek(curr->back), sizeof(p));
+    st_push(curr->forw, &curr->curr_page); // always bugs
+    page *p = *(page **)st_peek(curr->back);
     curr->curr_page = p;
     st_pop(curr->back);
 }
 
 // FORWARD
-void go_up(browser *br)
-{
+void go_up(browser *br, FILE * out) {
     tab *curr = ((tab *)(br->curr->data));
-    if(st_is_empty(curr->forw))
-    {
-        printf("NO PAGE IN HISTORY\n");
+    if(st_is_empty(curr->forw)) {
+        fprintf(out,"403 Forbidden\n");
         return;
     }
-    st_push(curr->back,&curr->curr_page);
-    page *p;
-    memcpy(&p, st_peek(curr->forw), sizeof(p));
+    st_push(curr->back, &curr->curr_page); // more bugs
+    page *p = *(page **)st_peek(curr->forw);
     curr->curr_page = p;
     st_pop(curr->forw);
 }
@@ -728,28 +721,28 @@ int main(void)
             strcpy(tab_num, query + 5);
             
             int target_id = atoi(tab_num);
-            int page_exists = 0;
-            for(int i = 0;i<sites_number;i++)
+            int page_exists = -1;
+            for(int i = 0;i<=sites_number;i++)
             {
                 if((sites[i]).id == target_id)
                 {
-                    page_exists = 1;
+                    page_exists = i;
                     break;
                 }
             }
-            if (page_exists) {
-                open_page(browser, target_id, sites);
+            if (page_exists != -1) {
+                open_page(browser, page_exists, sites);
             } else {
                 fprintf(out, "403 Forbidden\n");
             }
         }
         else if(!strcmp(query,"BACKWARD"))
         {
-            go_down(browser);
+            go_down(browser,out);
         }
         else if(!strcmp(query,"FORWARD"))
         {
-            go_up(browser);
+            go_up(browser,out);
         }
         else if(!strcmp(query,"PRINT"))
         {
