@@ -1,0 +1,746 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+
+#define MAX_DESC_LEN 200
+#define MAX_URL_LEN 55
+#define MAX_SITES 52
+#define MAX_QUERY_LEN 30
+typedef struct stack_t stack_t;
+struct stack_t
+{
+	struct doubly_linked_list_t *list;
+};
+
+typedef struct {
+    int id;
+    char url[55];   
+    char *description;
+} page;
+
+typedef struct {
+    int id;
+    page *curr_page;
+    stack_t *back;
+    stack_t *forw;
+}tab;
+
+typedef struct dll_node_t dll_node_t;
+struct dll_node_t
+{
+    void* data; /* Pentru ca datele stocate sa poata avea orice tip, folosim un
+                   pointer la void. */
+    dll_node_t *prev, *next;
+};
+
+typedef struct doubly_linked_list_t doubly_linked_list_t;
+struct doubly_linked_list_t
+{
+    dll_node_t* head;
+    unsigned int data_size;
+    unsigned int size;
+};  
+
+typedef struct browser {
+    dll_node_t *sen;
+    dll_node_t *curr;
+    int next_id;
+} browser;
+
+/*
+ * Functie care trebuie apelata pentru alocarea si initializarea unei liste.
+ * (Setare valori initiale pentru campurile specifice structurii LinkedList).
+ */
+doubly_linked_list_t*
+dll_create(unsigned int data_size)
+{
+	doubly_linked_list_t *list = malloc(sizeof(doubly_linked_list_t));
+    list->head = NULL;
+    list->data_size = data_size;
+    list->size = 0;
+    return list;
+}
+
+/*
+ * Functia intoarce un pointer la nodul de pe pozitia n din lista.
+ * Pozitiile din lista sunt indexate incepand cu 0 (i.e. primul nod din lista se
+ * afla pe pozitia n=0). Daca n >= nr_noduri, atunci se intoarce nodul de pe
+ * pozitia rezultata daca am "cicla" (posibil de mai multe ori) pe lista si am
+ * trece de la ultimul nod, inapoi la primul si am continua de acolo. Cum putem
+ * afla pozitia dorita fara sa simulam intreaga parcurgere?
+ * Atentie: n>=0 (nu trebuie tratat cazul in care n este negativ).
+ */
+dll_node_t*
+dll_get_nth_node(doubly_linked_list_t* list, unsigned int n)
+{
+	n %= list->size;
+    int cnt = 0;dll_node_t *p;
+    if(!list->head)
+         return NULL;
+    p = list->head;
+    if(!n)
+    {
+        return p;
+    }
+    while(cnt != n)
+    {
+        p=p->next;
+        cnt++;
+    }
+    return p;
+}
+
+/*
+ * Pe baza datelor trimise prin pointerul new_data, se creeaza un nou nod care e
+ * adaugat pe pozitia n a listei reprezentata de pointerul list. Pozitiile din
+ * lista sunt indexate incepand cu 0 (i.e. primul nod din lista se afla pe
+ * pozitia n=0). Cand indexam pozitiile nu "ciclam" pe lista circulara ca la
+ * get, ci consideram nodurile in ordinea de la head la ultimul (adica acel nod
+ * care pointeaza la head ca nod urmator in lista). Daca n >= nr_noduri, atunci
+ * adaugam nodul nou la finalul listei.
+ * Atentie: n>=0 (nu trebuie tratat cazul in care n este negativ).
+ */
+void
+dll_add_nth_node(doubly_linked_list_t* list, unsigned int n, const void* new_data)
+{
+	int cnt = 0;
+    dll_node_t *p = malloc(sizeof(dll_node_t));
+    p->data = malloc(list->data_size);
+    memcpy(p->data, new_data,list->data_size);
+    if(!list->head)
+    {
+        list->head = p;
+        list->size++;
+        p->next = p;
+        p->prev = p;
+        return;
+    }
+    if (n == 0)
+    {
+        p->prev = list->head->prev;
+        p->next = list->head;
+    
+        list->head->prev->next = p;
+        list->head->prev = p; 
+    
+        list->head = p; 
+        list->size++;
+        return;
+    }
+    dll_node_t *trv = list->head;
+    if(n >= list->size)
+    {
+        while(trv->next != list->head)
+        {
+            trv = trv->next;
+        }
+        p->next = trv->next; // = list->head
+        p->prev = trv;
+        trv->next = p;
+        list->head->prev = p;
+        list->size++;
+        return;
+    }
+    cnt++;
+    while(cnt != n)
+    {
+        trv = trv->next;
+        cnt++;
+    }
+    p->next = trv->next;
+    trv->next = p;
+    p->prev = trv;
+    p->next->prev = p;
+    list->size++;
+    return;
+}
+
+/*
+ * Elimina nodul de pe pozitia n din lista al carei pointer este trimis ca
+ * parametru. Pozitiile din lista se indexeaza de la 0 (i.e. primul nod din
+ * lista se afla pe pozitia n=0). Functia intoarce un pointer spre acest nod
+ * proaspat eliminat din lista. Daca n >= nr_noduri - 1, se elimina nodul de la
+ * finalul listei. Este responsabilitatea apelantului sa elibereze memoria
+ * acestui nod.
+ * Atentie: n>=0 (nu trebuie tratat cazul in care n este negativ).
+ */
+int dll_get_size(doubly_linked_list_t* list)
+{
+    return list->size;
+}
+
+dll_node_t*
+dll_remove_nth_node(doubly_linked_list_t* list, unsigned int n)
+{
+    dll_node_t *rm = list->head;
+	if(list->size == 1)
+    {
+        rm = list->head;
+        list->head = NULL;
+        list->size--;
+        return rm;
+    }
+    if(n == 0)
+    {
+        rm->next->prev = rm->prev;
+        list->head = rm->next;
+        list->size--;
+        return rm;
+    }
+    if(n >= list->size - 1)
+    {
+        rm = list->head->prev;
+
+        list->head->prev = rm->prev;
+        rm->prev->next = list->head;
+        list->size--;
+
+        return rm;
+    }
+
+    int cnt = 0;
+    while(cnt != n )
+    {
+        rm = rm->next;
+        cnt++;
+    }
+    rm->prev->next = rm->next;
+    rm->next->prev = rm->prev;
+    list->size--;
+    return rm;
+}
+/*
+ * Procedura elibereaza memoria folosita de toate nodurile din lista, iar la
+ * sfarsit, elibereaza memoria folosita de structura lista.
+ */
+void
+dll_free(doubly_linked_list_t** pp_list)
+{
+	if(!(*pp_list)->head)
+    {
+        (*pp_list)->data_size = 0;
+        (*pp_list)->size = 0;
+        free(*pp_list);
+        return;
+    }
+	dll_node_t *p = (*pp_list)->head;
+    p = p->next;
+    while(p != (*pp_list)->head)
+    {
+        dll_node_t *t = p->next;
+        free(p->data);
+        p->next = NULL;
+        p->prev = NULL;
+        free(p);
+        p = t;
+    }
+    p->next = NULL;
+    p->prev = NULL;
+    free(p->data);
+    free(p);
+    (*pp_list)->data_size = 0;
+    (*pp_list)->head = NULL;
+    (*pp_list)->size = 0;
+    free((*pp_list));
+}
+
+/*
+ * Atentie! Aceasta functie poate fi apelata doar pe liste ale caror noduri STIM
+ * ca stocheaza int-uri. Functia afiseaza toate valorile int stocate in nodurile
+ * din lista separate printr-un spatiu, incepand de la primul nod din lista.
+ */
+void
+dll_print_int_list(doubly_linked_list_t* list, FILE *out)
+{
+	if(!list->head)
+        return;
+    dll_node_t *p  = list->head;
+    int cnt = 0;
+    while(cnt != list->size)
+    {
+        fprintf(out,"%d ",*(int *)p->data);
+        p = p->next;
+        cnt++;
+    }
+    fprintf(out,"\n");
+}
+
+/*
+ * Atentie! Aceasta functie poate fi apelata doar pe liste ale caror noduri STIM
+ * ca stocheaza string-uri. Functia afiseaza toate string-urile stocate in
+ * nodurile din lista separate printr-un spatiu, incepand de la primul nod din lista.
+ */
+void
+dll_print_string_list(doubly_linked_list_t* list, FILE *out)
+{
+	if(!list->head)
+        return;
+    dll_node_t *p  = list->head;
+    int cnt = 0;
+    while(cnt != list->size)
+    {
+        fprintf(out,"%s ",(char *)p->data);
+        p = p->next;
+        cnt++;
+    }
+    fprintf(out,"\n");
+}
+
+
+stack_t *
+st_create(unsigned int data_size)
+{
+	stack_t *stk = malloc(sizeof(stack_t));
+    stk->list = dll_create(data_size);
+    return stk;
+}
+
+/*
+ * Functia intoarce numarul de elemente din stiva al carei pointer este trimis
+ * ca parametru.
+ */
+unsigned int
+st_get_size(stack_t *st)
+{
+	return dll_get_size(st->list);
+}
+
+/*
+ * Functia intoarce 1 daca stiva al carei pointer este trimis
+ * ca parametru este goala si 0 in caz contrar.
+ */
+unsigned int
+st_is_empty(stack_t *st)
+{
+    if(st->list->size)
+        return 0;
+	return 1;
+}
+
+/*
+ * Functia intoarce elementul din vârful stivei al carei pointer este trimis
+ * ca parametru fără a efectua nicio modificare asupra acesteia.
+ */
+void *
+st_peek(stack_t *st)
+{
+    if(!st || !st->list || !st->list->head || !st->list->size )
+        return NULL;
+	return st->list->head->data;
+}
+
+/*
+ * Functia elimina elementul din vârful stivei al carei pointer este trimis
+ * ca parametru. Atentie! Este responsabilitatea acestei functii de a elibera
+ * memoria pentru elementul eliminat.
+ */
+void
+st_pop(stack_t *st)
+{
+   if(!st)
+        return;
+   dll_node_t *fr = dll_remove_nth_node(st->list,0);
+   free(fr);
+}
+
+/*
+ * Pe baza datelor trimise prin pointerul new_data, se adauga un nou element in
+ * vârful stivei al carei pointer este trimis ca parametru.
+ */
+void
+st_push(stack_t *st, void *new_data)
+{
+    if(!st)
+        return;
+	dll_add_nth_node(st->list,0,new_data);
+}
+
+/*
+ * Functia elimina toate elementele stivei al carei pointer este trimis
+ * ca parametru.
+ */
+void
+st_clear(stack_t *st)
+{
+	while(!st_is_empty(st))
+    {
+        st_pop(st);
+    }
+}
+
+/*
+ * Functia elibereaza memoria folosita de toate elementele, iar la
+ * sfarsit elibereaza memoria folosita de structura stivei.
+ */
+void
+st_free(stack_t *st)
+{
+    if(!st || !st->list || !st->list->head || !st->list->size )
+        return;
+    dll_free(&(st->list));
+    free(st);
+}
+
+browser* browser_create(page *def) {
+    browser *br = malloc(sizeof(browser));
+
+    br->sen = malloc(sizeof(dll_node_t));
+    br->sen->data = NULL;
+
+    tab *initial_tab = malloc(sizeof(tab));
+    initial_tab->id = 0;
+    initial_tab->curr_page = &def[0];
+    initial_tab->back = st_create(sizeof(page *));
+    initial_tab->forw = st_create(sizeof(page *));
+
+    dll_node_t *first = malloc(sizeof(dll_node_t));
+    first->data = initial_tab;
+
+    first->next = br->sen;
+    first->prev = br->sen;
+
+    br->sen->next = first;
+    br->sen->prev = first;
+
+    br->curr = first;
+    br->next_id = 1;
+
+    return br;
+}
+
+
+// PAGE <ID>
+// the error check for this function should be 
+// done before its called
+void open_page(browser *br, int e, page *pges)
+{
+    tab *curr = ((tab *)(br->curr->data));
+    st_push(curr->back,curr->curr_page); // check for bugs here l8r
+    st_clear(curr->forw);
+    curr->curr_page = &pges[e];
+}
+
+// BACKWARD
+void go_down(browser *br)
+{
+    tab *curr = ((tab *)(br->curr->data));
+    if(st_is_empty(curr->back))
+    {
+        printf("NO PAGE IN HISTORY\n");
+        return;
+    }
+    st_push(curr->forw,curr->curr_page);
+    curr->curr_page = st_peek(curr->back);
+    st_pop(curr->back);
+}
+
+// FORWARD
+void go_up(browser *br)
+{
+    tab *curr = ((tab *)(br->curr->data));
+    if(st_is_empty(curr->forw))
+    {
+        printf("NO PAGE IN HISTORY\n");
+        return;
+    }
+    st_push(curr->back,curr->curr_page);
+    curr->curr_page = st_peek(curr->forw);
+    st_pop(curr->forw);
+}
+
+// PRINT
+void print_all(browser *br, FILE *out)
+{
+    if(!br->curr)
+    {
+        fprintf(out,"403 Forbidden\n");
+        return;
+    }
+    if(br->curr == br->sen)
+    {
+        fprintf(out,"403 Forbidden\n");
+        return;
+    }
+    if(br->curr->data == NULL)
+    {
+        fprintf(out,"403 Forbidden\n");
+        return;
+    }
+    dll_node_t *it = br->curr;
+    fprintf(out,"%d ",((tab*)(br->curr->data))->id);
+    it = it->next;
+    while(it != br->curr)
+    {
+        if(it == br->sen)
+        {
+            it = it->next;
+            continue;
+        }
+            
+        fprintf(out,"%d ",((tab*)(it->data))->id);
+        it = it->next;
+    }
+    fprintf(out,"\n%s\n",((page *)(((tab *)(br->curr->data))->curr_page))->description);
+}
+
+// PRINT_HISTORY <ID>
+void print_history(browser *br, int e, FILE *out)
+{
+    //tab * temp = (tab *)(br->curr->data);
+    dll_node_t *q = br->sen;
+    q = q->next;
+    while(e--)
+    {
+        q = q->next;
+    }
+    tab *temp  = (tab *)(q->data);
+    stack_t *mv = st_create(sizeof(page *));
+    while(!st_is_empty(temp->forw))
+    {
+        st_push(mv,st_peek(temp->forw));
+        st_pop(temp->forw);
+    }
+    while(!st_is_empty(mv))
+    {
+        fprintf(out,"%s\n",((page *)st_peek(mv))->url);
+
+        st_push(temp->forw,st_peek(mv));
+        st_pop(mv);
+    }
+
+    fprintf(out,"%s\n",((tab *)(br->curr->data))->curr_page->url);
+
+    while(!st_is_empty(temp->back))
+    {
+        fprintf(out,"%s\n",((page *)st_peek(temp->back))->url);
+
+        st_push(mv,st_peek(temp->back));
+        st_pop(temp->back);
+    }
+    while(!st_is_empty(mv))
+    {
+        st_push(temp->back,st_peek(mv));
+        st_pop(mv);
+    }
+}
+
+
+
+int read_sites(FILE *f, page sites[]) {
+    int sites_number;
+    if (fscanf(f, "%d", &sites_number) != 1) {
+        fprintf(stderr, "Error reading site count.\n");
+        printf("WHAT\n");;
+    }
+
+    sites[0].id = 0;
+    strcpy(sites[0].url, "https://acs.pub.ro/");
+    sites[0].description = malloc(MAX_DESC_LEN * sizeof(char));
+    if (!sites[0].description) {
+        perror("malloc");
+        return errno;
+    }
+    strcpy(sites[0].description, "Computer Science");
+
+    for (int i = 1; i <= sites_number; i++) {
+        if (fscanf(f, "%d\n", &sites[i].id) != 1) printf("WHAT\n");;
+    
+        if (fgets(sites[i].url, MAX_URL_LEN, f) == NULL) printf("WHAT\n");;
+        sites[i].url[strcspn(sites[i].url, "\n")] = '\0';
+    
+        sites[i].description = malloc(MAX_DESC_LEN * sizeof(char));
+        if (!sites[i].description) {
+            perror("malloc");
+            return errno;
+        }
+    
+        if (fgets(sites[i].description, MAX_DESC_LEN, f) == NULL) {
+            free(sites[i].description);
+            printf("WHAT\n");;
+        }
+        sites[i].description[strcspn(sites[i].description, "\n")] = '\0';
+    }
+    
+
+    return sites_number;
+}
+
+int open_files(FILE **in, FILE **out) {
+    *in = fopen("tema1.in", "r");
+    if (!*in) {
+        perror("fopen tema1.in");
+        return errno;
+    }
+
+    *out = fopen("tema1.out", "w");
+    if (!*out) {
+        perror("fopen tema1.out");
+        fclose(*in);
+        return errno;
+    }
+
+    return 0;
+}
+
+// NEW_TAB
+void new_tab(browser *br, page *default_page) {
+    tab *new_tab = malloc(sizeof(tab));
+    new_tab->id = br->next_id++;
+    new_tab->curr_page = &default_page[0];
+    new_tab->back = st_create(sizeof(page *));
+    new_tab->forw = st_create(sizeof(page *));
+
+    dll_node_t *node = malloc(sizeof(dll_node_t));
+    node->data = new_tab;
+
+    node->next = br->sen;
+    node->prev = br->sen->prev;
+    br->sen->prev->next = node;
+    br->sen->prev = node;
+
+    br->curr = node;
+}
+
+// CLOSE
+void close_curr_tab(browser *br, FILE *out) {
+    tab *curr_tab = (tab *)br->curr->data;
+    if (curr_tab->id == 0) {
+        fprintf(out,"403 Forbidden\n");
+        return;
+    }
+
+    dll_node_t *to_remove = br->curr;
+    dll_node_t *left = br->curr->prev;
+
+    to_remove->prev->next = to_remove->next;
+    to_remove->next->prev = to_remove->prev;
+
+    br->curr = left; 
+
+    st_free(curr_tab->back);
+    st_free(curr_tab->forw);
+    free(curr_tab);
+    free(to_remove);
+}
+
+// OPEN <ID>
+void switch_tabs(browser *br, int e) {
+    dll_node_t *it = br->sen->next;
+    while (it != br->sen) {
+        tab *current_tab = (tab*)it->data;
+        if (current_tab->id == e) {
+            br->curr = it;
+            return;
+        }
+        it = it->next;
+    }
+    printf("Error: Tab with ID %d not found.\n", e);
+}
+
+// NEXT
+void next_tab(browser *br)
+{
+    dll_node_t *temp = br->curr->next;
+    if(temp == br->sen)
+    {
+        temp = temp->next;
+    }
+    br->curr = temp;
+}
+
+// PREV
+void prev_tab(browser *br)
+{
+    dll_node_t *temp = br->curr->prev;
+    if(temp == br->sen)
+    {
+        temp = temp->prev;
+    }
+    br->curr = temp;
+}
+
+int main(void)
+{
+    page sites[MAX_SITES];
+    
+    FILE *in, *out;
+    if (open_files(&in, &out) != 0) {
+        printf("WHAT\n");
+    }
+    int sites_number = read_sites(in, sites);
+    browser *browser = browser_create(sites);
+    int queries;
+    if(!fscanf(in, "%d", &queries))
+    {
+        fprintf(stderr, "Error reading queries count.\n");
+        fclose(in);
+        fclose(out);
+        printf("WHAT\n");
+    }
+    fgetc(in);
+    for (int i = 0; i < queries; i++) {
+        char query[MAX_QUERY_LEN+1];
+        if (fgets(query, MAX_QUERY_LEN, in) == NULL) printf("WHAT\n");
+        query[strcspn(query, "\n")] = '\0';
+        if(!strcmp(query,"NEW_TAB"))
+        {
+            new_tab(browser,sites);
+        }
+        else if(!strcmp(query,"CLOSE"))
+        {
+            close_curr_tab(browser, out);
+        }
+        else if(strstr(query,"OPEN"))
+        {
+            char tab_num[20];
+            strcpy(tab_num,query+5);
+            switch_tabs(browser,atoi(tab_num));
+        }
+        else if(!strcmp(query,"NEXT"))
+        {
+            next_tab(browser);
+        }
+        else if(!strcmp(query,"PREV"))
+        {
+            prev_tab(browser);
+        }
+        else if(strstr(query,"PAGE"))
+        {
+            char page_id[20];
+            strcpy(page_id,query+5);
+            if(atoi(page_id)>sites_number)
+            {
+                fprintf(out,"FORBIDDEN ERROR\n");
+            }
+            open_page(browser, atoi(page_id), sites);
+        }
+        else if(!strcmp(query,"BACKWARD"))
+        {
+            go_down(browser);
+        }
+        else if(!strcmp(query,"FORWARD"))
+        {
+            go_up(browser);
+        }
+        else if(!strcmp(query,"PRINT"))
+        {
+            print_all(browser,out);
+        }
+        else if(strstr(query,"PRINT_HISTORY"))
+        {
+            char page_id[20];
+            strcpy(page_id,query+14);
+            print_history(browser,atoi(page_id),out);
+        }
+        else
+        {
+            fprintf(out,"BUG\n");
+        }
+        
+    }
+
+    fclose(in);
+    fclose(out);
+
+}
