@@ -38,8 +38,8 @@ typedef struct doubly_linked_list_t doubly_linked_list_t;
 struct doubly_linked_list_t
 {
     dll_node_t* head;
-    unsigned int data_size;
-    unsigned int size;
+    int data_size;
+    int size;
 };  
 
 typedef struct browser {
@@ -72,7 +72,7 @@ dll_create(unsigned int data_size)
  * Atentie: n>=0 (nu trebuie tratat cazul in care n este negativ).
  */
 dll_node_t*
-dll_get_nth_node(doubly_linked_list_t* list, unsigned int n)
+dll_get_nth_node(doubly_linked_list_t* list, int n)
 {
 	n %= list->size;
     int cnt = 0;dll_node_t *p;
@@ -102,7 +102,7 @@ dll_get_nth_node(doubly_linked_list_t* list, unsigned int n)
  * Atentie: n>=0 (nu trebuie tratat cazul in care n este negativ).
  */
 void
-dll_add_nth_node(doubly_linked_list_t* list, unsigned int n, const void* new_data)
+dll_add_nth_node(doubly_linked_list_t* list, int n, const void* new_data)
 {
 	int cnt = 0;
     dll_node_t *p = malloc(sizeof(dll_node_t));
@@ -171,7 +171,7 @@ int dll_get_size(doubly_linked_list_t* list)
 }
 
 dll_node_t*
-dll_remove_nth_node(doubly_linked_list_t* list, unsigned int n)
+dll_remove_nth_node(doubly_linked_list_t* list, int n)
 {
     dll_node_t *rm = list->head;
 	if(list->size == 1)
@@ -313,8 +313,9 @@ st_get_size(stack_t *st)
 unsigned int
 st_is_empty(stack_t *st)
 {
-    if(st->list->size)
+    if(st->list->size){
         return 0;
+    }
 	return 1;
 }
 
@@ -325,8 +326,9 @@ st_is_empty(stack_t *st)
 void *
 st_peek(stack_t *st)
 {
-    if(!st || !st->list || !st->list->head || !st->list->size )
+    if(!st || !st->list || !st->list->head || !st->list->size ){
         return NULL;
+    }
 	return st->list->head->data;
 }
 
@@ -351,8 +353,9 @@ st_pop(stack_t *st)
 void
 st_push(stack_t *st, void *new_data)
 {
-    if(!st)
+    if(!st){
         return;
+    }
 	dll_add_nth_node(st->list,0,new_data);
 }
 
@@ -664,7 +667,6 @@ void prev_tab(browser *br)
 int main(void)
 {
     page sites[MAX_SITES];
-    
     FILE *in, *out;
     if (open_files(&in, &out) != 0) {
         printf("WHAT\n");
@@ -692,11 +694,25 @@ int main(void)
         {
             close_curr_tab(browser, out);
         }
-        else if(strstr(query,"OPEN"))
-        {
+        else if (strstr(query, "OPEN")) {
             char tab_num[20];
-            strcpy(tab_num,query+5);
-            switch_tabs(browser,atoi(tab_num));
+            strcpy(tab_num, query + 5);
+            int target_id = atoi(tab_num);
+            int tab_exists = 0;
+            dll_node_t *it = browser->sen->next;
+            while (it != browser->sen) {
+                if (((tab*)it->data)->id == target_id) {
+                    tab_exists = 1;
+                    break;
+                }
+                it = it->next;
+            }
+            
+            if (tab_exists) {
+                switch_tabs(browser, target_id);
+            } else {
+                fprintf(out, "403 Forbidden\n");
+            }
         }
         else if(!strcmp(query,"NEXT"))
         {
@@ -708,13 +724,24 @@ int main(void)
         }
         else if(strstr(query,"PAGE"))
         {
-            char page_id[20];
-            strcpy(page_id,query+5);
-            if(atoi(page_id)>sites_number)
+            char tab_num[20];
+            strcpy(tab_num, query + 5);
+            
+            int target_id = atoi(tab_num);
+            int page_exists = 0;
+            for(int i = 0;i<sites_number;i++)
             {
-                fprintf(out,"FORBIDDEN ERROR\n");
+                if((sites[i]).id == target_id)
+                {
+                    page_exists = 1;
+                    break;
+                }
             }
-            open_page(browser, atoi(page_id), sites);
+            if (page_exists) {
+                open_page(browser, target_id, sites);
+            } else {
+                fprintf(out, "403 Forbidden\n");
+            }
         }
         else if(!strcmp(query,"BACKWARD"))
         {
@@ -730,9 +757,25 @@ int main(void)
         }
         else if(strstr(query,"PRINT_HISTORY"))
         {
-            char page_id[20];
-            strcpy(page_id,query+14);
-            print_history(browser,atoi(page_id),out);
+            char tab_num[20];
+            strcpy(tab_num, query + 13);
+            
+            int target_id = atoi(tab_num);
+            int tab_exists = 0;
+            dll_node_t *it = browser->sen->next;
+            while (it != browser->sen) {
+                if (((tab*)it->data)->id == target_id) {
+                    tab_exists = 1;
+                    break;
+                }
+                it = it->next;
+            }
+            
+            if (tab_exists) {
+                print_history(browser, target_id, out);
+            } else {
+                fprintf(out, "403 Forbidden\n");
+            }
         }
         else
         {
