@@ -7,6 +7,7 @@
 #define MAX_URL_LEN 55
 #define MAX_SITES 52
 #define MAX_QUERY_LEN 30
+
 typedef struct stack_t stack_t;
 struct stack_t
 {
@@ -29,8 +30,7 @@ typedef struct {
 typedef struct dll_node_t dll_node_t;
 struct dll_node_t
 {
-    void* data; /* Pentru ca datele stocate sa poata avea orice tip, folosim un
-                   pointer la void. */
+    void* data;
     dll_node_t *prev, *next;
 };
 
@@ -48,10 +48,6 @@ typedef struct browser {
     int next_id;
 } browser;
 
-/*
- * Functie care trebuie apelata pentru alocarea si initializarea unei liste.
- * (Setare valori initiale pentru campurile specifice structurii LinkedList).
- */
 doubly_linked_list_t*
 dll_create(unsigned int data_size)
 {
@@ -62,15 +58,6 @@ dll_create(unsigned int data_size)
     return list;
 }
 
-/*
- * Functia intoarce un pointer la nodul de pe pozitia n din lista.
- * Pozitiile din lista sunt indexate incepand cu 0 (i.e. primul nod din lista se
- * afla pe pozitia n=0). Daca n >= nr_noduri, atunci se intoarce nodul de pe
- * pozitia rezultata daca am "cicla" (posibil de mai multe ori) pe lista si am
- * trece de la ultimul nod, inapoi la primul si am continua de acolo. Cum putem
- * afla pozitia dorita fara sa simulam intreaga parcurgere?
- * Atentie: n>=0 (nu trebuie tratat cazul in care n este negativ).
- */
 dll_node_t*
 dll_get_nth_node(doubly_linked_list_t* list, int n)
 {
@@ -91,16 +78,6 @@ dll_get_nth_node(doubly_linked_list_t* list, int n)
     return p;
 }
 
-/*
- * Pe baza datelor trimise prin pointerul new_data, se creeaza un nou nod care e
- * adaugat pe pozitia n a listei reprezentata de pointerul list. Pozitiile din
- * lista sunt indexate incepand cu 0 (i.e. primul nod din lista se afla pe
- * pozitia n=0). Cand indexam pozitiile nu "ciclam" pe lista circulara ca la
- * get, ci consideram nodurile in ordinea de la head la ultimul (adica acel nod
- * care pointeaza la head ca nod urmator in lista). Daca n >= nr_noduri, atunci
- * adaugam nodul nou la finalul listei.
- * Atentie: n>=0 (nu trebuie tratat cazul in care n este negativ).
- */
 void
 dll_add_nth_node(doubly_linked_list_t* list, int n, const void* new_data)
 {
@@ -135,7 +112,7 @@ dll_add_nth_node(doubly_linked_list_t* list, int n, const void* new_data)
         {
             trv = trv->next;
         }
-        p->next = trv->next; // = list->head
+        p->next = trv->next;
         p->prev = trv;
         trv->next = p;
         list->head->prev = p;
@@ -156,15 +133,6 @@ dll_add_nth_node(doubly_linked_list_t* list, int n, const void* new_data)
     return;
 }
 
-/*
- * Elimina nodul de pe pozitia n din lista al carei pointer este trimis ca
- * parametru. Pozitiile din lista se indexeaza de la 0 (i.e. primul nod din
- * lista se afla pe pozitia n=0). Functia intoarce un pointer spre acest nod
- * proaspat eliminat din lista. Daca n >= nr_noduri - 1, se elimina nodul de la
- * finalul listei. Este responsabilitatea apelantului sa elibereze memoria
- * acestui nod.
- * Atentie: n>=0 (nu trebuie tratat cazul in care n este negativ).
- */
 int dll_get_size(doubly_linked_list_t* list)
 {
     return list->size;
@@ -210,10 +178,8 @@ dll_remove_nth_node(doubly_linked_list_t* list, int n)
     list->size--;
     return rm;
 }
-/*
- * Procedura elibereaza memoria folosita de toate nodurile din lista, iar la
- * sfarsit, elibereaza memoria folosita de structura lista.
- */
+
+
 void
 dll_free(doubly_linked_list_t** pp_list)
 {
@@ -245,11 +211,6 @@ dll_free(doubly_linked_list_t** pp_list)
     free((*pp_list));
 }
 
-/*
- * Atentie! Aceasta functie poate fi apelata doar pe liste ale caror noduri STIM
- * ca stocheaza int-uri. Functia afiseaza toate valorile int stocate in nodurile
- * din lista separate printr-un spatiu, incepand de la primul nod din lista.
- */
 void
 dll_print_int_list(doubly_linked_list_t* list, FILE *out)
 {
@@ -266,11 +227,6 @@ dll_print_int_list(doubly_linked_list_t* list, FILE *out)
     fprintf(out,"\n");
 }
 
-/*
- * Atentie! Aceasta functie poate fi apelata doar pe liste ale caror noduri STIM
- * ca stocheaza string-uri. Functia afiseaza toate string-urile stocate in
- * nodurile din lista separate printr-un spatiu, incepand de la primul nod din lista.
- */
 void
 dll_print_string_list(doubly_linked_list_t* list, FILE *out)
 {
@@ -292,31 +248,25 @@ stack_t *
 st_create(unsigned int data_size)
 {
 	stack_t *stk = malloc(sizeof(stack_t));
+    if (!stk) 
+        return NULL;
     stk->list = dll_create(data_size);
     return stk;
 }
 
-/*
- * Functia intoarce numarul de elemente din stiva al carei pointer este trimis
- * ca parametru.
- */
 unsigned int
 st_get_size(stack_t *st)
 {
 	return dll_get_size(st->list);
 }
 
-/*
- * Functia intoarce 1 daca stiva al carei pointer este trimis
- * ca parametru este goala si 0 in caz contrar.
- */
 unsigned int
 st_is_empty(stack_t *st)
 {
-    if(st->list->size){
-        return 0;
+    if(!st || !st->list || !st->list->size){
+        return 1;
     }
-	return 1;
+	return 0;
 }
 
 /*
@@ -380,10 +330,11 @@ st_clear(stack_t *st)
 void
 st_free(stack_t *st)
 {
-    if(!st || !st->list || !st->list->head || !st->list->size )
-        return;
-    st_clear(st);
-    dll_free(&(st->list));
+    if (!st) return;
+    if (st->list) {
+        st_clear(st);
+        dll_free(&st->list);
+    }
     free(st);
 }
 
@@ -795,7 +746,7 @@ int main(void)
         
     }
 
-    for(int i = 0;i<sites_number;i++)
+    for(int i = 0;i<=sites_number;i++)
     {
         free(sites[i].description);
     }
