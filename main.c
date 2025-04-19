@@ -340,9 +340,10 @@ st_peek(stack_t *st)
 void
 st_pop(stack_t *st)
 {
-   if(!st)
+   if(!st || st_is_empty(st))
         return;
    dll_node_t *fr = dll_remove_nth_node(st->list,0);
+   free(fr->data); // suspect
    free(fr);
 }
 
@@ -381,6 +382,7 @@ st_free(stack_t *st)
 {
     if(!st || !st->list || !st->list->head || !st->list->size )
         return;
+    st_clear(st);
     dll_free(&(st->list));
     free(st);
 }
@@ -657,6 +659,22 @@ void prev_tab(browser *br)
     br->curr = temp;
 }
 
+void browser_destroy(browser *br) {
+    if (!br) return;
+    dll_node_t *it = br->sen->next;
+    while (it != br->sen) {
+        dll_node_t *next = it->next;
+        tab *t = it->data;
+        st_free(t->back);
+        st_free(t->forw);
+        free(t);
+        free(it);
+        it = next;
+    }
+    free(br->sen);
+    free(br);
+}
+
 int main(void)
 {
     page sites[MAX_SITES];
@@ -777,6 +795,12 @@ int main(void)
         
     }
 
+    for(int i = 0;i<sites_number;i++)
+    {
+        free(sites[i].description);
+    }
+
+    browser_destroy(browser);
     fclose(in);
     fclose(out);
 
